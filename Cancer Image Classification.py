@@ -9,14 +9,15 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Activation, Dense, Flatten, BatchNormalization, Conv2D, MaxPool2D, Rescaling
+from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D, Rescaling
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import categorical_crossentropy
 
 image_size = (256,256)
-batch_size = 32
-train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/lung_colon_image_set_train'
-test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/lung_colon_image_set_test'
+batch_size = 16
+train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Segmented_train'
+test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Segmented_test'
+drop_out = 0.2
 
 print("Loading training data:")    
 ds_tr = keras.preprocessing.image_dataset_from_directory(
@@ -42,8 +43,8 @@ print("Loading test data:")
 ds_test = keras.preprocessing.image_dataset_from_directory(
         test_path,
         image_size=image_size,
-        label_mode='categorical'
-        #batch_size=batch_size,
+        label_mode='categorical',
+        batch_size=batch_size,
     )
 class_names = ds_tr.class_names   
 print(f"\n Class names are {class_names}")
@@ -61,6 +62,7 @@ augment_layer = Sequential([keras.layers.RandomFlip(),
   
 AUTOTUNE = tf.data.AUTOTUNE
 
+#Augmentation broken currently, see bookmarks to work out fix
 #ds_tr = ds_tr.map(augment_layer, num_parallel_calls=4)
 
 ds_tr = ds_tr.cache().prefetch(buffer_size=AUTOTUNE)
@@ -70,11 +72,13 @@ ds_val = ds_val.cache().prefetch(buffer_size=AUTOTUNE)
 model = Sequential([
         Rescaling(1./255),
         Conv2D(filters=32, kernel_size=(3, 3), activation='relu', padding = 'same', input_shape=(224,224,3)),
+        Dropout(drop_out),
         MaxPool2D(pool_size=(2, 2), strides=2),
         Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same'),
+        Dropout(drop_out),
         MaxPool2D(pool_size=(2, 2), strides=2),
         Flatten(),
-        Dense(units=5, activation='softmax'),
+        Dense(units=4, activation='softmax'),
 ])
 
 model.compile(optimizer=Adam(learning_rate=0.0001),

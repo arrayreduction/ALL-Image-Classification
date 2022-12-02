@@ -14,7 +14,7 @@ def get_files(dir, src):
     #else:
     #    sub_src = os.path.join(src, 'colon_image_sets')
 
-    sub_src = os.path.join(sub_src, dir)
+    sub_src = os.path.join(src, dir)
 
     #Get all filenames with filepath
     files = [os.path.join(dirpath,f) for (dirpath, dirnames, filenames) in os.walk(sub_src) for f in filenames]
@@ -25,8 +25,8 @@ def main():
     '''A small script to set up test folders and randomly moves across'''
 
     #Copy directory structure with no files
-    src = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\original'
-    dst = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\original_test'
+    src = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Original_train'
+    dst = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Original_test'
 
     copytree(src, dst, ignore=ignore_patterns('*.jpg', '*.jpeg'), dirs_exist_ok=False)
 
@@ -37,17 +37,16 @@ def main():
 
     for i in range(len(dirs)):
         classes.append(get_files(dirs[i], src))
-
-    #Check classes are expected length
-    for i in range(len(classes)):
-        assert len(classes[i]) == 5000
+        print(f"{len(classes[i])} files in class {i}")
 
     #randomly sample 20% for test data from each class
-    k = 1000
 
     test_data = []
+    split = 0.2
 
     for i in range(len(classes)):
+        k = round(split*len(classes[i]))
+        print(f"{k} test sample for class {i} with {split} test split")
         test_data.append(sample(classes[i], k))
 
     files = []
@@ -59,14 +58,48 @@ def main():
             #Generate destination path
             f_str = file.split("\\")
             for i in range(len(f_str)):
-                if f_str[i] == "lung_colon_image_set_train":
-                    f_str[i] = "lung_colon_image_set_test"
+                if f_str[i] == "Original_train":
+                    f_str[i] = "Original_test"
 
             dst = "\\".join(f_str)
+            files.append(dst)
 
             #Move file new location
             move(src, dst, copy_function=copy2)
 
-    print("Done")
+    print("Done Original")
+
+    #Repeat copies for segmented data. Segmented data have same filenames
+    #so we just reuse our files[] from ealier to obtain an identical split
+
+    src = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Segmented_train'
+    dst = r'C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Segmented_test'
+
+    copytree(src, dst, ignore=ignore_patterns('*.jpg', '*.jpeg'), dirs_exist_ok=False)
+
+    for file in files:
+        #generate src path
+        src = file
+        src_str = src.split("\\")
+        for i in range(len(src_str)):
+            if src_str[i] == "Original_train":
+                src_str[i] = "Segmented_train"
+
+        src = "\\".join(src_str)
+
+        #Generate destination path
+        f_str = file.split("\\")
+        for i in range(len(f_str)):
+            if f_str[i] == "Original_train":
+                f_str[i] = "Segmented_train"
+            elif f_str[i] == "Original_test":
+                f_str[i] = "Segmented_test"
+
+        dst = "\\".join(f_str)
+
+        #Move file new location
+        move(src, dst, copy_function=copy2)
+    
+    print("Done Segmented")
 
 main()
