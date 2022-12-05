@@ -78,16 +78,18 @@ def main():
     copytree(src, dst, ignore=ignore_patterns('*.jpg', '*.jpeg'), dirs_exist_ok=False)
 
     for file in files:
-        #generate src path
+        #generate src path. Always segmented train
         src = file
         src_str = src.split("\\")
         for i in range(len(src_str)):
             if src_str[i] == "Original_train":
                 src_str[i] = "Segmented_train"
+            elif src_str[i] == "Original_test":
+                src_str[i] = "Segmented_train"
 
         src = "\\".join(src_str)
 
-        #Generate destination path
+        #Generate destination path. Depends whether the OG file was for train or test
         f_str = file.split("\\")
         for i in range(len(f_str)):
             if f_str[i] == "Original_train":

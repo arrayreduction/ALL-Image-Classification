@@ -15,8 +15,8 @@ from tensorflow.keras.metrics import categorical_crossentropy
 
 image_size = (256,256)
 batch_size = 16
-train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Segmented_train'
-test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Segmented_test'
+train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_train'
+test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_test'
 drop_out = 0.2
 
 print("Loading training data:")    
@@ -57,13 +57,20 @@ print(f"\n Class names are {class_names}")
 print(ds_tr)
 
 #Augmentation
-augment_layer = Sequential([keras.layers.RandomFlip(),
-        keras.layers.RandomRotation(0.1)])
+Flip = keras.layers.RandomFlip()
+Rotate = keras.layers.RandomRotation(0.25)
+
+def augment(image, label):
+    image = Flip(image)
+    image = Rotate(image)
+    
+    return image, label
+    
   
 AUTOTUNE = tf.data.AUTOTUNE
 
 #Augmentation broken currently, see bookmarks to work out fix
-#ds_tr = ds_tr.map(augment_layer, num_parallel_calls=4)
+ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
 ds_tr = ds_tr.cache().prefetch(buffer_size=AUTOTUNE)
 ds_val = ds_val.cache().prefetch(buffer_size=AUTOTUNE)
