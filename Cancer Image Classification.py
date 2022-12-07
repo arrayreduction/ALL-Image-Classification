@@ -6,12 +6,16 @@ Created on Fri Nov  4 14:41:21 2022
 """
 
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf      #!!! clean up this import, only used once
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D, Rescaling
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.metrics import categorical_crossentropy
+#from keras.layers.advanced_activations import PReLU
+from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccuracy, AUC
+from tensorflow_addons.metrics import F1Score
+from tensorflow.keras.callbacks import ModelCheckpoint
+from os.path import normpath
 
 image_size = (256,256)
 batch_size = 16
@@ -88,9 +92,20 @@ model = Sequential([
         Dense(units=4, activation='softmax'),
 ])
 
+checkpoint_path = r"C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Checkpoints\1.ckpt"
+checkpoint_path = normpath(checkpoint_path)
+
+cp_callback = ModelCheckpoint(
+    filepath=checkpoint_path, 
+    verbose=1, 
+    save_weights_only=True,
+    save_freq=5*batch_size)
+
+
 model.compile(optimizer=Adam(learning_rate=0.0001),
               loss='categorical_crossentropy',
-              metrics=['accuracy']
+              metrics=[F1Score(num_classes=4, average='weighted'),
+                       AUC(curve='PR'),CategoricalAccuracy()]
 )
 
 #print(model.summary())
@@ -100,5 +115,6 @@ model.fit(x = ds_tr,
           validation_data=ds_val,
           validation_steps=len(ds_val),
           epochs=50,
+          callbacks=[cp_callback],
           verbose=2
 )
