@@ -6,7 +6,7 @@ Created on Fri Nov  4 14:41:21 2022
 """
 
 import numpy as np
-import tensorflow as tf      #!!! clean up this import, only used once
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D, Rescaling
@@ -18,6 +18,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, History
 from os.path import normpath
 from sklearn.model_selection import KFold, ParameterGrid
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
 
 image_size = (256,256)
 batch_size = 16
