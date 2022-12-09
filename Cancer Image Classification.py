@@ -17,6 +17,7 @@ from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.callbacks import ModelCheckpoint, History
 from os.path import normpath
 from sklearn.model_selection import KFold, ParameterGrid
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 image_size = (256,256)
 batch_size = 16
@@ -25,25 +26,35 @@ test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/C
 drop_out = 0.2
 
 print("Loading training data:")    
-ds_tr = keras.preprocessing.image_dataset_from_directory(
-    train_path,
-    validation_split=0.2,
-    subset="training",
-    seed=208,
-    image_size=image_size,
-    batch_size=1,
-    label_mode='categorical'
-)
-print("Loading validation data:")    
-ds_val = keras.preprocessing.image_dataset_from_directory(
-    train_path,
-    validation_split=0.2,
-    subset="validation",
-    seed=208,
-    image_size=image_size,
-    batch_size=1,
-    label_mode='categorical'
-)
+#ds_tr = keras.preprocessing.image_dataset_from_directory(
+#    train_path,
+#    validation_split=0.2,
+#    subset="training",
+#    seed=208,
+#    image_size=image_size,
+#    batch_size=1,
+#    label_mode='categorical'
+#)
+
+ds_tr = ImageDataGenerator(validation_split=0.2, preprocessing_function=tf.keras.applications.vgg16.preprocess_input) \
+    .flow_from_directory(directory=train_path, batch_size=1,
+                         seed=208, subset='training')
+ 
+print("Loading validation data:")   
+
+ds_val = ImageDataGenerator(validation_split=0.2, preprocessing_function=tf.keras.applications.vgg16.preprocess_input) \
+    .flow_from_directory(directory=train_path, batch_size=1,
+                         seed=208, subset='validation')
+ 
+#ds_val = keras.preprocessing.image_dataset_from_directory(
+#    train_path,
+#    validation_split=0.2,
+#    subset="validation",
+#    seed=208,
+#    image_size=image_size,
+#    batch_size=1,
+#    label_mode='categorical'
+#)
 print("Loading test data:") 
 ds_test = keras.preprocessing.image_dataset_from_directory(
         test_path,
@@ -51,8 +62,9 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
         label_mode='categorical',
        batch_size=1,
     )
-class_names = ds_tr.class_names   
-print(f"\n Class names are {class_names}")
+
+#class_names = ds_tr.class_names   
+#print(f"\n Class names are {class_names}")
 
 print(ds_tr)
 
@@ -134,7 +146,7 @@ param_combination = 1
 i = 0
 
 #paramater grid to search
-params= {'optimizer':Adam()}
+params= {'optimizer':[Adam()]}
 
 #make into iterable
 params = ParameterGrid(params)
@@ -147,7 +159,10 @@ for train_index, test_index in kf.split(ds_tr):
         #Get compiler options from params
         if 'optimizer' in params[i]:
             optimizer = params[i]['optimizer']
-        model.compile(opmtimizer=optimizer)
+            if optimizer == 'Adam':
+                optimizer = Adam()
+            
+        model.compile(optimizer=optimizer)
 
 
 #print(model.summary())
