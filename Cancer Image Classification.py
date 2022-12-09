@@ -60,10 +60,24 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
 class_names = ds_tr.class_names   
 print(f"\n Class names are {class_names}")
 
-#Preprocessing, !!! there is a bug I need to fix here
-#ds_tr = keras.applications.vgg16.preprocess_input(ds_tr)
-#ds_val = keras.applications.vgg16.preprocess_input(ds_val)
-#ds_test = keras.applications.vgg16.preprocess_input(ds_test)
+#Preprocessing. We pass just the image tensor portion
+#of the training data to the adapt method of a normalise layer.
+#This gives us a normaliser which does (input - mean) / sqrt(var)
+#based on the mean and var from the training data channels only
+
+features = ds_tr.map(lambda x, y: x)
+norm_layer = tf.keras.layers.Normalization(axis=None)
+norm_layer.adapt(features)
+
+def preprocessing(image, label):
+    #image = keras.applications.vgg16.preprocess_input(image)
+    image = norm_layer(image)
+    
+    return image, label
+
+ds_tr = ds_tr.map(preprocessing, num_parallel_calls=4)
+ds_val = ds_val.map(preprocessing, num_parallel_calls=4)
+ds_test = ds_test.map(preprocessing, num_parallel_calls=4)
 
 print(ds_tr)
 
@@ -83,7 +97,6 @@ def augment(image, label):
   
 AUTOTUNE = tf.data.AUTOTUNE
 
-#Augmentation broken currently, see bookmarks to work out fix
 ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
 ds_tr = ds_tr.cache().prefetch(buffer_size=AUTOTUNE)
