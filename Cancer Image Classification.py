@@ -111,8 +111,11 @@ model = Sequential([
 checkpoint_path = r"C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Checkpoints\1.ckpt"
 checkpoint_path = normpath(checkpoint_path)
 
-#paramater grid to search
-params= {'optimizer':[Adam()]}
+cp_callback = ModelCheckpoint(
+    filepath=checkpoint_path, 
+    verbose=1, 
+    save_weights_only=True,
+    save_freq= 5 * tr_length // batch_size)
 
 history = History()
 
