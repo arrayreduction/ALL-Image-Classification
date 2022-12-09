@@ -14,7 +14,7 @@ from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization,
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccuracy, AUC
 from tensorflow_addons.metrics import F1Score
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, History
 from os.path import normpath
 
 image_size = (256,256)
@@ -30,7 +30,7 @@ ds_tr = keras.preprocessing.image_dataset_from_directory(
     subset="training",
     seed=208,
     image_size=image_size,
-    batch_size=batch_size,
+    batch_size=1,
     label_mode='categorical'
 )
 print("Loading validation data:")    
@@ -40,7 +40,7 @@ ds_val = keras.preprocessing.image_dataset_from_directory(
     subset="validation",
     seed=208,
     image_size=image_size,
-    batch_size=batch_size,
+    batch_size=1,
     label_mode='categorical'
 )
 print("Loading test data:") 
@@ -48,7 +48,7 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
         test_path,
         image_size=image_size,
         label_mode='categorical',
-        batch_size=batch_size,
+       batch_size=1,
     )
 class_names = ds_tr.class_names   
 print(f"\n Class names are {class_names}")
@@ -59,6 +59,9 @@ print(f"\n Class names are {class_names}")
 #ds_test = keras.applications.vgg16.preprocess_input(ds_test)
 
 print(ds_tr)
+
+tr_length = len(ds_tr)
+val_length = len(ds_val)
 
 #Augmentation
 Flip = keras.layers.RandomFlip()
@@ -78,6 +81,12 @@ ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
 ds_tr = ds_tr.cache().prefetch(buffer_size=AUTOTUNE)
 ds_val = ds_val.cache().prefetch(buffer_size=AUTOTUNE)
+
+#Batch the data
+ds_tr = ds_tr.unbatch()
+ds_tr = ds_tr.batch(batch_size=batch_size)
+ds_val = ds_val.unbatch()
+ds_val = ds_val.batch(batch_size=batch_size)
 
 #Really quick model just to test things are working
 model = Sequential([
@@ -99,8 +108,9 @@ cp_callback = ModelCheckpoint(
     filepath=checkpoint_path, 
     verbose=1, 
     save_weights_only=True,
-    save_freq=5*batch_size)
+    save_freq= 5 * tr_length // batch_size)
 
+history = History()
 
 model.compile(optimizer=Adam(learning_rate=0.0001),
               loss='categorical_crossentropy',
@@ -108,13 +118,20 @@ model.compile(optimizer=Adam(learning_rate=0.0001),
                        AUC(curve='PR'),CategoricalAccuracy()]
 )
 
-#print(model.summary())
 
 model.fit(x = ds_tr,
-          steps_per_epoch=len(ds_tr),
+          #steps_per_epoch=tr_length//batch_size,
+          #batch_size=batch_size,
           validation_data=ds_val,
-          validation_steps=len(ds_val),
+          #validation_steps=val_length//batch_size,
           epochs=50,
-          callbacks=[cp_callback],
+          callbacks=[cp_callback, history],
           verbose=2
 )
+
+#print(model.summary())
+
+#To try diff batch size
+#ds = ds.unbatch()
+#ds = ds.batch(batch_size=n)
+
