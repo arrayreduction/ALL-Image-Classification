@@ -27,35 +27,28 @@ test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/C
 drop_out = 0.2
 
 print("Loading training data:")    
-#ds_tr = keras.preprocessing.image_dataset_from_directory(
-#    train_path,
-#    validation_split=0.2,
-#    subset="training",
-#    seed=208,
-#    image_size=image_size,
-#    batch_size=1,
-#    label_mode='categorical'
-#)
+ds_tr = keras.preprocessing.image_dataset_from_directory(
+    train_path,
+    validation_split=0.2,
+    subset="training",
+    seed=208,
+    image_size=image_size,
+    batch_size=1,
+    label_mode='categorical'
+)
 
-ds_tr = ImageDataGenerator(validation_split=0.2, preprocessing_function=tf.keras.applications.vgg16.preprocess_input) \
-    .flow_from_directory(directory=train_path, batch_size=1,
-                         seed=208, subset='training')
- 
 print("Loading validation data:")   
-
-ds_val = ImageDataGenerator(validation_split=0.2, preprocessing_function=tf.keras.applications.vgg16.preprocess_input) \
-    .flow_from_directory(directory=train_path, batch_size=1,
-                         seed=208, subset='validation')
  
-#ds_val = keras.preprocessing.image_dataset_from_directory(
-#    train_path,
-#    validation_split=0.2,
-#    subset="validation",
-#    seed=208,
-#    image_size=image_size,
-#    batch_size=1,
-#    label_mode='categorical'
-#)
+ds_val = keras.preprocessing.image_dataset_from_directory(
+    train_path,
+    validation_split=0.2,
+    subset="validation",
+    seed=208,
+    image_size=image_size,
+    batch_size=1,
+    label_mode='categorical'
+)
+
 print("Loading test data:") 
 ds_test = keras.preprocessing.image_dataset_from_directory(
         test_path,
@@ -64,8 +57,8 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
        batch_size=1,
     )
 
-#class_names = ds_tr.class_names   
-#print(f"\n Class names are {class_names}")
+class_names = ds_tr.class_names   
+print(f"\n Class names are {class_names}")
 
 #Preprocessing, !!! there is a bug I need to fix here
 #ds_tr = keras.applications.vgg16.preprocess_input(ds_tr)
@@ -129,16 +122,6 @@ model.compile(optimizer=Adam(learning_rate=0.0001),
                        AUC(curve='PR'),CategoricalAccuracy()]
 )
 
-for train_index, test_index in kf.split(ds_tr):
-    for model in models:
-        #Get compiler options from params
-        if 'optimizer' in params[i]:
-            optimizer = params[i]['optimizer']
-            if optimizer == 'Adam':
-                optimizer = Adam()
-            
-        model.compile(optimizer=optimizer)
-
 model.fit(x = ds_tr,
           #steps_per_epoch=tr_length//batch_size,
           #batch_size=batch_size,
@@ -148,6 +131,16 @@ model.fit(x = ds_tr,
           callbacks=[cp_callback, history],
           verbose=2
 )
+
+for train_index, test_index in kf.split(ds_tr):
+    for model in models:
+        #Get compiler options from params
+        if 'optimizer' in params[i]:
+            optimizer = params[i]['optimizer']
+            if optimizer == 'Adam':
+                optimizer = Adam()
+            
+        model.compile(optimizer=optimizer)
 
 #print(model.summary())
 
