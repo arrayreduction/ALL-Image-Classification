@@ -18,6 +18,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, History
 from os.path import normpath
 from sklearn.model_selection import KFold, ParameterGrid
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import matplotlib.pyplot as plt
 
 
 image_size = (256,256)
@@ -78,6 +79,21 @@ def preprocessing(image, label):
 ds_tr = ds_tr.map(preprocessing, num_parallel_calls=4)
 ds_val = ds_val.map(preprocessing, num_parallel_calls=4)
 ds_test = ds_test.map(preprocessing, num_parallel_calls=4)
+
+#Show images, adapted from code by Uche Onyekpe
+def plotImages(images):
+    fig, axes = plt.subplots(1, 10, figsize=(20,20))
+    axes = axes.flatten()
+    for img, ax in zip(images, axes):
+        print(img[0,:,:,:])
+        ax.imshow(img[0,:,:,:])
+        ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+features = ds_tr.map(lambda x, y: x)
+
+plotImages(features)
 
 print(ds_tr)
 
