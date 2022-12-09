@@ -16,6 +16,7 @@ from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccurac
 from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.callbacks import ModelCheckpoint, History
 from os.path import normpath
+from sklearn.model_selection import KFold, ParameterGrid
 
 image_size = (256,256)
 batch_size = 16
@@ -53,15 +54,25 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
 class_names = ds_tr.class_names   
 print(f"\n Class names are {class_names}")
 
-#Preprocessing, !!! there is a bug I need to fix here
-#ds_tr = keras.applications.vgg16.preprocess_input(ds_tr)
-#ds_val = keras.applications.vgg16.preprocess_input(ds_val)
-#ds_test = keras.applications.vgg16.preprocess_input(ds_test)
-
 print(ds_tr)
 
 tr_length = len(ds_tr)
 val_length = len(ds_val)
+
+history = History()
+checkpoint_path = r"C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Checkpoints\1.ckpt"
+checkpoint_path = normpath(checkpoint_path)
+
+cp_callback = ModelCheckpoint(
+    filepath=checkpoint_path, 
+    verbose=1, 
+    save_weights_only=True,
+    save_freq= 5 * tr_length // batch_size)
+
+#Preprocessing, !!! there is a bug I need to fix here
+#ds_tr = keras.applications.vgg16.preprocess_input(ds_tr)
+#ds_val = keras.applications.vgg16.preprocess_input(ds_val)
+#ds_test = keras.applications.vgg16.preprocess_input(ds_test)
 
 #Augmentation
 Flip = keras.layers.RandomFlip()
@@ -89,7 +100,7 @@ ds_val = ds_val.unbatch()
 ds_val = ds_val.batch(batch_size=batch_size)
 
 #Really quick model just to test things are working
-model = Sequential([
+model1 = Sequential([
         Rescaling(1./255),
         Conv2D(filters=32, kernel_size=(3, 3), activation='relu', padding = 'same', input_shape=(224,224,3)),
         Dropout(drop_out),
@@ -101,33 +112,43 @@ model = Sequential([
         Dense(units=4, activation='softmax'),
 ])
 
-checkpoint_path = r"C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Checkpoints\1.ckpt"
-checkpoint_path = normpath(checkpoint_path)
-
-cp_callback = ModelCheckpoint(
-    filepath=checkpoint_path, 
-    verbose=1, 
-    save_weights_only=True,
-    save_freq= 5 * tr_length // batch_size)
-
-history = History()
-
-model.compile(optimizer=Adam(learning_rate=0.0001),
-              loss='categorical_crossentropy',
-              metrics=[F1Score(num_classes=4, average='weighted'),
-                       AUC(curve='PR'),CategoricalAccuracy()]
-)
+#model1.compile(optimizer=Adam(learning_rate=0.0001),
+#              loss='categorical_crossentropy',
+#              metrics=[F1Score(num_classes=4, average='weighted'),
+#                       AUC(curve='PR'),CategoricalAccuracy()]
+#)
 
 
-model.fit(x = ds_tr,
-          #steps_per_epoch=tr_length//batch_size,
-          #batch_size=batch_size,
-          validation_data=ds_val,
-          #validation_steps=val_length//batch_size,
-          epochs=50,
-          callbacks=[cp_callback, history],
-          verbose=2
-)
+#model1.fit(x = ds_tr,
+#          validation_data=ds_val,
+#          epochs=50,
+#          callbacks=[cp_callback, history],
+#          verbose=2
+#)
+
+#!!! Testing of cross-val. Will drop seperate validation
+#data once using this.
+#Adapted from code by Uche Onyekpe
+kf = KFold(n_splits=5, shuffle=True, random_state=247)
+param_combination = 1
+i = 0
+
+#paramater grid to search
+params= {'optimizer':Adam()}
+
+#make into iterable
+params = ParameterGrid(params)
+
+models = []
+models.append(model1)
+
+for train_index, test_index in kf.split(ds_tr):
+    for model in models:
+        #Get compiler options from params
+        if 'optimizer' in params[i]:
+            optimizer = params[i]['optimizer']
+        model.compile(opmtimizer=optimizer)
+
 
 #print(model.summary())
 
