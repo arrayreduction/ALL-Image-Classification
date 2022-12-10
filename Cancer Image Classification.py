@@ -85,7 +85,6 @@ def plotImages(images):
     fig, axes = plt.subplots(1, 10, figsize=(20,20))
     axes = axes.flatten()
     for img, ax in zip(images, axes):
-        print(img[0,:,:,:])
         ax.imshow(img[0,:,:,:])
         ax.axis('off')
     plt.tight_layout()
@@ -154,18 +153,48 @@ model.compile(optimizer=Adam(learning_rate=0.0001),
                        AUC(curve='PR'),CategoricalAccuracy()]
 )
 
-model.fit(x = ds_tr,
-          #steps_per_epoch=tr_length//batch_size,
-          #batch_size=batch_size,
-          validation_data=ds_val,
-          #validation_steps=val_length//batch_size,
-          epochs=50,
-          callbacks=[cp_callback, history],
-          verbose=2
-)
+#model.fit(x = ds_tr,
+#          validation_data=ds_val,
+#          epochs=50,
+#          callbacks=[cp_callback, history],
+#          verbose=2
+#)
 
-for train_index, test_index in kf.split(ds_tr):
+params = {'optimizer':['Adam']}
+params = ParameterGrid(params)
+
+cv_split = 5
+
+models =[]
+models.append(model)
+
+#for train_index, test_index in kf.split(ds_tr):
+    
+def cv(cv_split, train_data, models):
+    
+    train_data = tf.Variable(train_data)
+    val_fraction = 1/cv_split
+    train_fraction= 1 - val_fraction
+    train_fold_frac = train_fraction / (cv_split - 1)
+    
+    #val_size = val_fraction * len(train_data)
+    train_size = train_fraction * len(train_data)
+    train_fold_size = train_fold_frac * len(train_data)
+    
+    train_folds = []
+    
     for model in models:
+        #Split data
+        train_data = train_data.shuffle(reshuffle_each_iteration=False)
+        train_data = train_data.take(train_size)
+        val_data = train_data.skip(train_size)
+    
+        for i in range(cv_split - 1):
+            train_folds[i] = train_data.take_while(lambda z, x=i, y=train_fold_size: 
+                                                  z <= x*y and z > y*x+1)
+        
+        print(len(train_folds[0]), train_folds[1])
+                
         #Get compiler options from params
         if 'optimizer' in params[i]:
             optimizer = params[i]['optimizer']
@@ -173,6 +202,8 @@ for train_index, test_index in kf.split(ds_tr):
                 optimizer = Adam()
             
         model.compile(optimizer=optimizer)
+        
+cv(5, ds_tr, models)
 
 #print(model.summary())
 
