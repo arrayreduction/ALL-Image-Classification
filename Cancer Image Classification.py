@@ -98,8 +98,6 @@ features = ds_tr.map(lambda x, y: x)
 
 plotImages(features)
 
-print(ds_tr)
-
 tr_length = len(ds_tr)
 val_length = len(ds_val)
 
@@ -118,10 +116,7 @@ AUTOTUNE = tf.data.AUTOTUNE
 
 ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
-ds_tr = ds_tr.cache().prefetch(buffer_size=AUTOTUNE)
-ds_val = ds_val.cache().prefetch(buffer_size=AUTOTUNE)
-
-#Batch the data
+#Unbatch the data
 ds_tr = ds_tr.unbatch()
 #ds_tr = ds_tr.batch(batch_size=batch_size)
 ds_val = ds_val.unbatch()
@@ -130,7 +125,7 @@ ds_val = ds_val.unbatch()
 #Really quick model just to test things are working
 model = Sequential([
         Rescaling(1./255),
-        Conv2D(filters=32, kernel_size=(3, 3), activation='relu', padding = 'same', input_shape=(224,224,3)),
+        Conv2D(filters=32, kernel_size=(3, 3), activation='relu', padding = 'same', input_shape=(256,256,3)),
         Dropout(drop_out),
         MaxPool2D(pool_size=(2, 2), strides=2),
         Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same'),
@@ -221,15 +216,32 @@ def cv(cv_split, train_data, tr_length, models):
                 if optimizer == 'Adam':
                     optimizer = Adam()
                 
-        features = train_folds.flat_map(lambda x, y: x.batch(batch_size))
-        labels = train_folds.flat_map(lambda x, y: y.batch(batch_size))
-        train_data = tf.data.Dataset.from_tensor_slices((features, labels))
-        #train_data = train_folds.flat_map(lambda x, y: tf.data.Dataset.from_tensor_slices((
-        #    x.batch(batch_size), y.batch(batch_size))))
+        tr_features = train_folds.flat_map(lambda x, y: x)
+        tr_labels = train_folds.flat_map(lambda x, y: y)
 
-        print(train_data)
-        model.compile(optimizer=optimizer)
+        train_data = tf.data.Dataset.zip((tr_features, tr_labels))
+        train_data = train_data.batch(batch_size)
         
+        val_fold = val_fold.batch(batch_size)
+        
+        model.compile(optimizer=optimizer,
+                      loss='categorical_crossentropy',
+                      metrics=[F1Score(num_classes=4, average='weighted'),
+                               AUC(curve='PR'),CategoricalAccuracy()]
+        )
+        
+        print(train_data)
+        
+        train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
+        val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
+        
+        model.fit(x = train_data,
+                  validation_data=val_fold,
+                  epochs=50,
+                  callbacks=[cp_callback, history],
+                  verbose=2
+        )
+                
 cv(5, ds_tr, tr_length, models)
 
 #print(model.summary())
