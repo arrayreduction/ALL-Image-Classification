@@ -19,6 +19,7 @@ from os.path import normpath
 from sklearn.model_selection import KFold, ParameterGrid
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
+from math import ceil
 
 
 image_size = (256,256)
@@ -35,7 +36,8 @@ ds_tr = keras.preprocessing.image_dataset_from_directory(
     seed=208,
     image_size=image_size,
     batch_size=1,
-    label_mode='categorical'
+    label_mode='categorical',
+    shuffle=True
 )
 
 print("Loading validation data:")   
@@ -47,7 +49,8 @@ ds_val = keras.preprocessing.image_dataset_from_directory(
     seed=208,
     image_size=image_size,
     batch_size=1,
-    label_mode='categorical'
+    label_mode='categorical',
+    shuffle=True
 )
 
 print("Loading test data:") 
@@ -56,6 +59,7 @@ ds_test = keras.preprocessing.image_dataset_from_directory(
         image_size=image_size,
         label_mode='categorical',
        batch_size=1,
+       shuffle=True
     )
 
 class_names = ds_tr.class_names   
@@ -119,9 +123,9 @@ ds_val = ds_val.cache().prefetch(buffer_size=AUTOTUNE)
 
 #Batch the data
 ds_tr = ds_tr.unbatch()
-ds_tr = ds_tr.batch(batch_size=batch_size)
+#ds_tr = ds_tr.batch(batch_size=batch_size)
 ds_val = ds_val.unbatch()
-ds_val = ds_val.batch(batch_size=batch_size)
+#ds_val = ds_val.batch(batch_size=batch_size)
 
 #Really quick model just to test things are working
 model = Sequential([
@@ -170,40 +174,63 @@ models.append(model)
 
 #for train_index, test_index in kf.split(ds_tr):
     
-def cv(cv_split, train_data, models):
+def cv(cv_split, train_data, tr_length, models):
     
-    train_data = tf.Variable(train_data)
-    val_fraction = 1/cv_split
-    train_fraction= 1 - val_fraction
-    train_fold_frac = train_fraction / (cv_split - 1)
+    #train_data = tf.Variable(train_data)
+    fold_fraction = 1/cv_split
+    train_fraction= 1 - fold_fraction
     
     #val_size = val_fraction * len(train_data)
-    train_size = train_fraction * len(train_data)
-    train_fold_size = train_fold_frac * len(train_data)
+    train_size = train_fraction * tr_length
+    train_fold_size = fold_fraction * tr_length
+    
+    #Round the fold size and train size up. As we are using tf.window()
+    #this will ensure all data is placed in a fold. Will preference an additional
+    #sample into training when tr_length mod cv_split neq 0.
+    
+    train_size = ceil(train_size)
+    train_fold_size = ceil(train_fold_size)
     
     train_folds = []
     
-    for model in models:
-        #Split data
-        train_data = train_data.shuffle(reshuffle_each_iteration=False)
-        train_data = train_data.take(train_size)
-        val_data = train_data.skip(train_size)
+    #Randomis date. We can maintain a smaller buffer as data is already
+    #shuffled on load. We just want to make sure each iteration sees
+    #a different order of the data
+    train_data = train_data.shuffle(tr_length//4, reshuffle_each_iteration=True)
     
-        for i in range(cv_split - 1):
-            train_folds[i] = train_data.take_while(lambda z, x=i, y=train_fold_size: 
-                                                  z <= x*y and z > y*x+1)
+    for model in models:
+        #Split data.
+
+        train_data = train_data.take(train_size)
+        val_fold = train_data.skip(train_size)
+    
+        train_folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
+                                        drop_remainder=False)
         
-        print(len(train_folds[0]), train_folds[1])
+        
+        #get batch_size from params
+        for i in range(len(params)):
+            if 'batch_size' in params[i]:
+                batch_size = params[i]['batch_size']
+            else:
+                batch_size = 16
+                    
+            #Get compiler options from params
+            if 'optimizer' in params[i]:
+                optimizer = params[i]['optimizer']
+                if optimizer == 'Adam':
+                    optimizer = Adam()
                 
-        #Get compiler options from params
-        if 'optimizer' in params[i]:
-            optimizer = params[i]['optimizer']
-            if optimizer == 'Adam':
-                optimizer = Adam()
-            
+        features = train_folds.flat_map(lambda x, y: x.batch(batch_size))
+        labels = train_folds.flat_map(lambda x, y: y.batch(batch_size))
+        train_data = tf.data.Dataset.from_tensor_slices((features, labels))
+        #train_data = train_folds.flat_map(lambda x, y: tf.data.Dataset.from_tensor_slices((
+        #    x.batch(batch_size), y.batch(batch_size))))
+
+        print(train_data)
         model.compile(optimizer=optimizer)
         
-cv(5, ds_tr, models)
+cv(5, ds_tr, tr_length, models)
 
 #print(model.summary())
 
