@@ -146,11 +146,11 @@ cp_callback = ModelCheckpoint(
 
 history = History()
 
-model.compile(optimizer=Adam(learning_rate=0.0001),
-              loss='categorical_crossentropy',
-              metrics=[F1Score(num_classes=4, average='weighted'),
-                       AUC(curve='PR'),CategoricalAccuracy()]
-)
+#model.compile(optimizer=Adam(learning_rate=0.0001),
+#              loss='categorical_crossentropy',
+#              metrics=[F1Score(num_classes=4, average='weighted'),
+#                       AUC(curve='PR'),CategoricalAccuracy()]
+#)
 
 #model.fit(x = ds_tr,
 #          validation_data=ds_val,
@@ -211,10 +211,21 @@ def cv(cv_split, train_data, tr_length, models):
                 batch_size = 16
                     
             #Get compiler options from params
+            if 'learning_rate' in params[i]:
+                learning_rate = params[i]['learning_rate']
+            else:
+                learning_rate = 0.0001
+                
             if 'optimizer' in params[i]:
                 optimizer = params[i]['optimizer']
                 if optimizer == 'Adam':
-                    optimizer = Adam()
+                    optimizer = Adam(learning_rate)
+                    
+            #Get fit() options from params
+            if 'epochs' in params[i]:
+                epochs = params[i]['epochs']
+            else:
+                epochs = 50
                 
         tr_features = train_folds.flat_map(lambda x, y: x)
         tr_labels = train_folds.flat_map(lambda x, y: y)
@@ -237,7 +248,7 @@ def cv(cv_split, train_data, tr_length, models):
         
         model.fit(x = train_data,
                   validation_data=val_fold,
-                  epochs=50,
+                  epochs=epochs,
                   callbacks=[cp_callback, history],
                   verbose=2
         )
