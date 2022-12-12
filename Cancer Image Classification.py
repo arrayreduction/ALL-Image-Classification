@@ -168,8 +168,8 @@ cv_split = 5
 models =[]
 models.append(model)
 
-#for train_index, test_index in kf.split(ds_tr):
-    
+#for train_index, test_index in kf.split(ds_tr):   
+ 
 def cv(cv_split, train_data, tr_length, models):
     
     #train_data = tf.Variable(train_data)
@@ -197,9 +197,9 @@ def cv(cv_split, train_data, tr_length, models):
 
         #train_data = train_data.take(train_size)
         #val_fold = train_data.skip(train_size)
-    
-        folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
-                                        drop_remainder=False)
+
+        #folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
+        #                                drop_remainder=False)
         
         
         #get batch_size from params
@@ -226,40 +226,94 @@ def cv(cv_split, train_data, tr_length, models):
             else:
                 epochs = 50
         
-        count = 0
+        train_data = train_data.batch(train_fold_size)
+        folds=[]
+        
+        #But togeth list of folds
         
         for i in range(cv_split):
-            count += 1
-            tr_features = folds.flat_map(lambda x, y, i=i, count=count: x if (i != count))
-            tr_labels = folds.flat_map(lambda x, y, i=i, count=count: y if (i != count))
-            val_features = folds.flat_map(lambda, x, y, i=i, count=count: x if (i == count))
-            val_labels = folds.flat_map(lambda, x, y, i=i, count=count: y if (i == count))
+            folds.append(train_data.skip(i).take(1))       
             
-        #tr_features = tr_folds.flat_map(lambda x, y: x)
-        #tr_labels = tr_folds.flat_map(lambda x, y: y)
-
-        train_data = tf.data.Dataset.zip((tr_features, tr_labels))
-        train_data = train_data.batch(batch_size)
-        
-        val_fold = tf.data.Dataset.zip((val_features, val_labels))
-        val_fold = val_fold.batch(batch_size)
+        #Put folds back into a proper dataset and train
+         
+        for i in range(len(folds)):
+            for j in range(cv_split):
+                if j == i:
+                    val_fold = folds[j]
+                else:
+                    if j == 0:
+                        train_data = folds[0]
+                    else:
+                        train_data = train_data.concatenate(folds[i])
             
-        model.compile(optimizer=optimizer,
-                      loss='categorical_crossentropy',
-                      metrics=[F1Score(num_classes=4, average='weighted'),
-                               AUC(curve='PR'),CategoricalAccuracy()]
-        )
-        
-        
-        train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
-        val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
-        
-        model.fit(x = train_data,
-                  validation_data=val_fold,
-                  epochs=epochs,
-                  callbacks=[cp_callback, history],
-                  verbose=2
-        )
+            
+            
+            #mask = np.array([])
+            
+         #   for j, fold in enumerate(folds):
+         #       if j == i:
+         #           zeros = np.zeros(len(fold[0]), dtype=np.int64)
+         #           if j == 0:
+         #               mask = zeros
+         #           else:
+         #               mask = np.concatenate((mask, zeros))
+         #       else:
+         #           ones = np.ones(len(fold[0]), dtype=np.int64)
+         #           if j == 0:
+         #               mask = ones
+         #           else:
+         #               mask = np.concatenate((mask, ones))
+                
+            #tr_features = folds.flat_map(lambda x, y, z, i=i: x if (i != z) else None)
+            #tr_labels = folds.flat_map(lambda x, y, z, i=i: y if (i != z) else None)
+            #val_features = folds.flat_map(lambda x, y, z, i=i: x if (i == z) else None)
+            #val_labels = folds.flat_map(lambda x, y, z, i=i: y if (i == z) else None)
+            
+           # features = folds.flat_map(lambda x, y: x)
+           # labels = folds.flat_map(lambda x, y: y)
+            
+           # mask = tf.convert_to_tensor(mask)
+           # tr_features = features.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
+           # tr_labels = labels.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
+           # train_data = tf.data.Dataset.zip((features, labels))
+            
+            #print(mask)
+            
+            #mask = tf.data.Dataset.from_tensors(tf.cast(mask, dtype=tf.int64))
+            
+            #print(mask)
+            #print(tf.data.DatasetSpec.from_value(mask))
+            
+            #train_data = data.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
+            #train_data = tf.data.experimental.choose_from_datasets(data, mask)
+            #val_fold = tf.data.experimental.choose_from_datasets(data, ~mask)
+            
+            #print(train_data)
+            #print(val_fold)
+            
+            train_data = train_data.unbatch()
+            train_data = train_data.batch(batch_size)
+            
+            #val_fold = tf.data.Dataset.zip((val_features, val_labels))
+            val_fold = val_fold.unbatch()
+            val_fold = val_fold.batch(batch_size)
+                
+            model.compile(optimizer=optimizer,
+                          loss='categorical_crossentropy',
+                          metrics=[F1Score(num_classes=4, average='weighted'),
+                                   AUC(curve='PR'),CategoricalAccuracy()]
+            )
+            
+            
+            train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
+            val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
+            
+            model.fit(x = train_data,
+                      validation_data=val_fold,
+                      epochs=epochs,
+                      callbacks=[cp_callback, history],
+                      verbose=2
+            )
                 
 cv(5, ds_tr, tr_length, models)
 
