@@ -159,7 +159,8 @@ history = History()
 #          verbose=2
 #)
 
-params = {'optimizer':['Adam']}
+params = {'optimizer':['Adam'],
+          'epochs':[1]}
 params = ParameterGrid(params)
 
 cv_split = 5
@@ -186,8 +187,6 @@ def cv(cv_split, train_data, tr_length, models):
     train_size = ceil(train_size)
     train_fold_size = ceil(train_fold_size)
     
-    train_folds = []
-    
     #Randomis date. We can maintain a smaller buffer as data is already
     #shuffled on load. We just want to make sure each iteration sees
     #a different order of the data
@@ -196,10 +195,10 @@ def cv(cv_split, train_data, tr_length, models):
     for model in models:
         #Split data.
 
-        train_data = train_data.take(train_size)
-        val_fold = train_data.skip(train_size)
+        #train_data = train_data.take(train_size)
+        #val_fold = train_data.skip(train_size)
     
-        train_folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
+        folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
                                         drop_remainder=False)
         
         
@@ -226,22 +225,31 @@ def cv(cv_split, train_data, tr_length, models):
                 epochs = params[i]['epochs']
             else:
                 epochs = 50
-                
-        tr_features = train_folds.flat_map(lambda x, y: x)
-        tr_labels = train_folds.flat_map(lambda x, y: y)
+        
+        count = 0
+        
+        for i in range(cv_split):
+            count += 1
+            tr_features = folds.flat_map(lambda x, y, i=i, count=count: x if (i != count))
+            tr_labels = folds.flat_map(lambda x, y, i=i, count=count: y if (i != count))
+            val_features = folds.flat_map(lambda, x, y, i=i, count=count: x if (i == count))
+            val_labels = folds.flat_map(lambda, x, y, i=i, count=count: y if (i == count))
+            
+        #tr_features = tr_folds.flat_map(lambda x, y: x)
+        #tr_labels = tr_folds.flat_map(lambda x, y: y)
 
         train_data = tf.data.Dataset.zip((tr_features, tr_labels))
         train_data = train_data.batch(batch_size)
         
+        val_fold = tf.data.Dataset.zip((val_features, val_labels))
         val_fold = val_fold.batch(batch_size)
-        
+            
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
                       metrics=[F1Score(num_classes=4, average='weighted'),
                                AUC(curve='PR'),CategoricalAccuracy()]
         )
         
-        print(train_data)
         
         train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
         val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
