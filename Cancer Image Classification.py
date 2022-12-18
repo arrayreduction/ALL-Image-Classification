@@ -165,12 +165,9 @@ params = ParameterGrid(params)
 
 cv_split = 5
 
-models =[]
-models.append(model)
-
 #for train_index, test_index in kf.split(ds_tr):   
  
-def cv(cv_split, train_data, tr_length, models):
+def cv(cv_split, train_data, tr_length, model, param_grid):
     
     #train_data = tf.Variable(train_data)
     fold_fraction = 1/cv_split
@@ -181,127 +178,82 @@ def cv(cv_split, train_data, tr_length, models):
     train_fold_size = fold_fraction * tr_length
     
     #Round the fold size and train size up. As we are using tf.window()
-    #this will ensure all data is placed in a fold. Will preference an additional
-    #sample into training when tr_length mod cv_split neq 0.
+    #this will ensure all data are placed in a fold.
     
     train_size = ceil(train_size)
     train_fold_size = ceil(train_fold_size)
     
-    #Randomis date. We can maintain a smaller buffer as data is already
-    #shuffled on load. We just want to make sure each iteration sees
-    #a different order of the data
-    train_data = train_data.shuffle(tr_length//4, reshuffle_each_iteration=True)
-    
-    for model in models:
-        #Split data.
-
-        #train_data = train_data.take(train_size)
-        #val_fold = train_data.skip(train_size)
-
-        #folds = train_data.window(train_fold_size, stride = 1, shift = train_fold_size,
-        #                                drop_remainder=False)
+    for params in param_grid:
+        metric_ave = 0
+        metric_scores = []
         
+        #Randomise data. We can maintain a smaller buffer as data are already
+        #shuffled on load. We just want to make sure each iteration sees
+        #a different order of the data
+        train_data = train_data.shuffle(tr_length//8, reshuffle_each_iteration=False)
         
         #get batch_size from params
-        for i in range(len(params)):
-            if 'batch_size' in params[i]:
-                batch_size = params[i]['batch_size']
-            else:
-                batch_size = 16
-                    
-            #Get compiler options from params
-            if 'learning_rate' in params[i]:
-                learning_rate = params[i]['learning_rate']
-            else:
-                learning_rate = 0.0001
+        if 'batch_size' in params:
+            batch_size = params['batch_size']
+        else:
+            batch_size = 16
                 
-            if 'optimizer' in params[i]:
-                optimizer = params[i]['optimizer']
-                if optimizer == 'Adam':
-                    optimizer = Adam(learning_rate)
-                    
-            #Get fit() options from params
-            if 'epochs' in params[i]:
-                epochs = params[i]['epochs']
-            else:
-                epochs = 50
+        #Get compiler options from params
+        if 'learning_rate' in params:
+            learning_rate = params['learning_rate']
+        else:
+            learning_rate = 0.0001
+            
+        if 'optimizer' in params:
+            optimizer = params['optimizer']
+            if optimizer == 'Adam':
+                optimizer = Adam(learning_rate)
+                
+        #Get fit() options from params
+        if 'epochs' in params:
+            epochs = params['epochs']
+        else:
+            epochs = 50
         
         train_data = train_data.batch(train_fold_size)
         folds=[]
         
-        #But togeth list of folds
+        #Put together list of folds
         
         for i in range(cv_split):
-            folds.append(train_data.skip(i).take(1))       
+            folds.append(train_data.skip(i).take(1))
+            
+        assert(len(folds) == cv_split)
             
         #Put folds back into a proper dataset and train
+        #On each i loop we pick a different fold to be the val_fold
+        #We then add training folds until all folds are assigned
          
-        for i in range(len(folds)):
+        for i in range(cv_split):
+            train_data =None
+            
             for j in range(cv_split):
                 if j == i:
                     val_fold = folds[j]
                 else:
-                    if j == 0:
-                        train_data = folds[0]
+                    if train_data is None:
+                        train_data = folds[j]
                     else:
-                        train_data = train_data.concatenate(folds[i])
+                        train_data = train_data.concatenate(folds[j])
             
             
-            
-            #mask = np.array([])
-            
-         #   for j, fold in enumerate(folds):
-         #       if j == i:
-         #           zeros = np.zeros(len(fold[0]), dtype=np.int64)
-         #           if j == 0:
-         #               mask = zeros
-         #           else:
-         #               mask = np.concatenate((mask, zeros))
-         #       else:
-         #           ones = np.ones(len(fold[0]), dtype=np.int64)
-         #           if j == 0:
-         #               mask = ones
-         #           else:
-         #               mask = np.concatenate((mask, ones))
-                
-            #tr_features = folds.flat_map(lambda x, y, z, i=i: x if (i != z) else None)
-            #tr_labels = folds.flat_map(lambda x, y, z, i=i: y if (i != z) else None)
-            #val_features = folds.flat_map(lambda x, y, z, i=i: x if (i == z) else None)
-            #val_labels = folds.flat_map(lambda x, y, z, i=i: y if (i == z) else None)
-            
-           # features = folds.flat_map(lambda x, y: x)
-           # labels = folds.flat_map(lambda x, y: y)
-            
-           # mask = tf.convert_to_tensor(mask)
-           # tr_features = features.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
-           # tr_labels = labels.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
-           # train_data = tf.data.Dataset.zip((features, labels))
-            
-            #print(mask)
-            
-            #mask = tf.data.Dataset.from_tensors(tf.cast(mask, dtype=tf.int64))
-            
-            #print(mask)
-            #print(tf.data.DatasetSpec.from_value(mask))
-            
-            #train_data = data.map(lambda x, mask=mask: tf.boolean_mask(x, mask))
-            #train_data = tf.data.experimental.choose_from_datasets(data, mask)
-            #val_fold = tf.data.experimental.choose_from_datasets(data, ~mask)
-            
-            #print(train_data)
-            #print(val_fold)
+            print(f"Training fold {i}")
             
             train_data = train_data.unbatch()
             train_data = train_data.batch(batch_size)
             
-            #val_fold = tf.data.Dataset.zip((val_features, val_labels))
             val_fold = val_fold.unbatch()
             val_fold = val_fold.batch(batch_size)
                 
             model.compile(optimizer=optimizer,
                           loss='categorical_crossentropy',
                           metrics=[F1Score(num_classes=4, average='weighted'),
-                                   AUC(curve='PR'),CategoricalAccuracy()]
+                                   CategoricalAccuracy()]
             )
             
             
@@ -309,13 +261,20 @@ def cv(cv_split, train_data, tr_length, models):
             val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
             
             model.fit(x = train_data,
-                      validation_data=val_fold,
                       epochs=epochs,
-                      callbacks=[cp_callback, history],
                       verbose=2
             )
+            
+            metric = F1Score(num_classes=4, average='weighted')
+            preds = model.predict(val_fold)
+            
+            _, val_labels = tuple(zip(*val_fold.unbatch()))
+            metric.update_state(val_labels,preds)
+            metric_scores.append(metric.result())
+         
+        metric_ave = np.mean(metric_scores)
                 
-cv(5, ds_tr, tr_length, models)
+cv(5, ds_tr, tr_length, model, params)
 
 #print(model.summary())
 
