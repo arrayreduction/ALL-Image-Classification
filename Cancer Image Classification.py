@@ -31,21 +31,8 @@ drop_out = 0.2
 print("Loading training data:")    
 ds_tr = keras.preprocessing.image_dataset_from_directory(
     train_path,
-    validation_split=0.2,
+    validation_split=None,
     subset="training",
-    seed=208,
-    image_size=image_size,
-    batch_size=1,
-    label_mode='categorical',
-    shuffle=True
-)
-
-print("Loading validation data:")   
- 
-ds_val = keras.preprocessing.image_dataset_from_directory(
-    train_path,
-    validation_split=0.2,
-    subset="validation",
     seed=208,
     image_size=image_size,
     batch_size=1,
@@ -116,12 +103,6 @@ AUTOTUNE = tf.data.AUTOTUNE
 
 ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
-#Unbatch the data
-#ds_tr = ds_tr.unbatch()
-#ds_tr = ds_tr.batch(batch_size=batch_size)
-#ds_val = ds_val.unbatch()
-#ds_val = ds_val.batch(batch_size=batch_size)
-
 #Really quick model just to test things are working
 model = Sequential([
         Rescaling(1./255),
@@ -158,8 +139,7 @@ history = History()
 #          callbacks=[cp_callback, history],
 #          verbose=2
 #)
-
-#for train_index, test_index in kf.split(ds_tr):   
+  
  
 def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     
@@ -269,11 +249,11 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
             metric_scores.append(metric.result())
          
         metric_ave = np.mean(metric_scores)
-        cv_scores.append((metric_ave, params.items()))
+        cv_scores.append((metric_ave, params))
     
     if return_best:
         scores, _ = zip(*cv_scores)
-        idx = np.argmax(scores) #!!! Bug here
+        idx = np.argmax(scores)
         best = cv_scores[idx]
         
         return best
@@ -288,8 +268,4 @@ scores = cv(2, ds_tr, tr_length, model, params)
 print(scores)
 
 #print(model.summary())
-
-#To try diff batch size
-#ds = ds.unbatch()
-#ds = ds.batch(batch_size=n)
 
