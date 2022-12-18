@@ -117,9 +117,9 @@ AUTOTUNE = tf.data.AUTOTUNE
 ds_tr = ds_tr.map(augment, num_parallel_calls=4)
 
 #Unbatch the data
-ds_tr = ds_tr.unbatch()
+#ds_tr = ds_tr.unbatch()
 #ds_tr = ds_tr.batch(batch_size=batch_size)
-ds_val = ds_val.unbatch()
+#ds_val = ds_val.unbatch()
 #ds_val = ds_val.batch(batch_size=batch_size)
 
 #Really quick model just to test things are working
@@ -159,17 +159,10 @@ history = History()
 #          verbose=2
 #)
 
-params = {'optimizer':['Adam'],
-          'epochs':[1]}
-params = ParameterGrid(params)
-
-cv_split = 5
-
 #for train_index, test_index in kf.split(ds_tr):   
  
-def cv(cv_split, train_data, tr_length, model, param_grid):
+def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     
-    #train_data = tf.Variable(train_data)
     fold_fraction = 1/cv_split
     train_fraction= 1 - fold_fraction
     
@@ -183,11 +176,14 @@ def cv(cv_split, train_data, tr_length, model, param_grid):
     train_size = ceil(train_size)
     train_fold_size = ceil(train_fold_size)
     
+    cv_scores = []
+    
     for params in param_grid:
         metric_ave = 0
         metric_scores = []
+        train_data = train_data.unbatch()
         
-        #Randomise data. We can maintain a smaller buffer as data are already
+        #Randomise data order. We can maintain a smaller buffer as data are already
         #shuffled on load. We just want to make sure each iteration sees
         #a different order of the data
         train_data = train_data.shuffle(tr_length//8, reshuffle_each_iteration=False)
@@ -230,22 +226,22 @@ def cv(cv_split, train_data, tr_length, model, param_grid):
         #We then add training folds until all folds are assigned
          
         for i in range(cv_split):
-            train_data =None
+            train_folds = None
             
             for j in range(cv_split):
                 if j == i:
                     val_fold = folds[j]
                 else:
-                    if train_data is None:
-                        train_data = folds[j]
+                    if train_folds is None:
+                        train_folds = folds[j]
                     else:
-                        train_data = train_data.concatenate(folds[j])
+                        train_folds = train_folds.concatenate(folds[j])
             
             
             print(f"Training fold {i}")
             
-            train_data = train_data.unbatch()
-            train_data = train_data.batch(batch_size)
+            train_folds = train_folds.unbatch()
+            train_folds = train_folds.batch(batch_size)
             
             val_fold = val_fold.unbatch()
             val_fold = val_fold.batch(batch_size)
@@ -257,10 +253,10 @@ def cv(cv_split, train_data, tr_length, model, param_grid):
             )
             
             
-            train_data = train_data.cache().prefetch(buffer_size=AUTOTUNE)
+            train_folds = train_folds.cache().prefetch(buffer_size=AUTOTUNE)
             val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
             
-            model.fit(x = train_data,
+            model.fit(x = train_folds,
                       epochs=epochs,
                       verbose=2
             )
@@ -273,8 +269,23 @@ def cv(cv_split, train_data, tr_length, model, param_grid):
             metric_scores.append(metric.result())
          
         metric_ave = np.mean(metric_scores)
-                
-cv(5, ds_tr, tr_length, model, params)
+        cv_scores.append((metric_ave, params.items()))
+    
+    if return_best:
+        scores, _ = zip(*cv_scores)
+        idx = np.argmax(scores) #!!! Bug here
+        best = cv_scores[idx]
+        
+        return best
+    else:
+        return cv_scores
+
+params = {'optimizer':['Adam'],
+          'epochs':[1, 3]}
+params = ParameterGrid(params)
+               
+scores = cv(2, ds_tr, tr_length, model, params)
+print(scores)
 
 #print(model.summary())
 
