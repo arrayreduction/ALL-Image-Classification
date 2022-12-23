@@ -32,7 +32,7 @@ print("Loading training data:")
 ds_tr = keras.preprocessing.image_dataset_from_directory(
     train_path,
     validation_split=None,
-    subset="training",
+    subset=None,
     seed=208,
     image_size=image_size,
     batch_size=1,
@@ -68,7 +68,7 @@ def preprocessing(image, label):
     return image, label
 
 ds_tr = ds_tr.map(preprocessing, num_parallel_calls=4)
-ds_val = ds_val.map(preprocessing, num_parallel_calls=4)
+#ds_val = ds_val.map(preprocessing, num_parallel_calls=4)
 ds_test = ds_test.map(preprocessing, num_parallel_calls=4)
 
 #Show images, adapted from code by Uche Onyekpe
@@ -86,7 +86,7 @@ features = ds_tr.map(lambda x, y: x)
 plotImages(features)
 
 tr_length = len(ds_tr)
-val_length = len(ds_val)
+#val_length = len(ds_val)
 
 #Augmentation
 Flip = keras.layers.RandomFlip()
@@ -159,8 +159,10 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     cv_scores = []
     
     for params in param_grid:
-        metric_ave = 0
-        metric_scores = []
+        metric_ave_tr = 0
+        metric_ave_val = 0
+        metric_scores_train = []
+        metric_scores_val = []
         train_data = train_data.unbatch()
         
         #Randomise data order. We can maintain a smaller buffer as data are already
@@ -242,18 +244,31 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
             )
             
             metric = F1Score(num_classes=4, average='weighted')
-            preds = model.predict(val_fold)
+
+            preds = model.predict(train_folds)
+            _, train_labels = tuple(zip(*train_folds.unbatch()))
+            train_labels = np.array(train_labels)
+            metric.update_state(train_labels,preds)
+            metric_scores_train.append(metric.result())      
             
+            metric.reset_state()
+
+            preds = model.predict(val_fold)
             _, val_labels = tuple(zip(*val_fold.unbatch()))
+            val_labels = np.array(val_labels)
             metric.update_state(val_labels,preds)
-            metric_scores.append(metric.result())
-         
-        metric_ave = np.mean(metric_scores)
-        cv_scores.append((metric_ave, params))
+            metric_scores_val.append(metric.result())
+            
+            metric.reset_state()
+
+
+        metric_ave_tr = np.mean(metric_scores_train)
+        metric_ave_val = np.mean(metric_scores_val)
+        cv_scores.append((metric_ave_tr, metric_ave_val, params))
     
     if return_best:
-        scores, _ = zip(*cv_scores)
-        idx = np.argmax(scores)
+        tr_score, val_score, _ = zip(*cv_scores)
+        idx = np.argmax(val_score)
         best = cv_scores[idx]
         
         return best
