@@ -9,8 +9,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D, Rescaling
-#from keras.layers.advanced_activations import PReLU
+from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D
 from tensorflow.keras.optimizers import Adam, Adagrad
 from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccuracy, AUC
 from tensorflow_addons.metrics import F1Score
@@ -77,10 +76,13 @@ with tf.device("/cpu:0"):
     #Augmentation
     Flip = keras.layers.RandomFlip()
     Rotate = keras.layers.RandomRotation(0.25)
+    Cont = keras.layers.RandomContrast(factor=0.1)
+
     
     def augment(image, label):
         image = Flip(image)
         image = Rotate(image)
+        image = Cont(image)
         
         return image, label
         
@@ -103,7 +105,9 @@ with tf.device("/cpu:0"):
         image = norm_layer(image)
         
         return image, label
-    
+
+    #Crop, then augment, then normalize    
+
     ds_tr = ds_tr.map(preprocessing_1, num_parallel_calls=4)
     ds_val = ds_val.map(preprocessing_1, num_parallel_calls=4)
     ds_test = ds_test.map(preprocessing_1, num_parallel_calls=4)
@@ -131,31 +135,6 @@ with tf.device("/cpu:0"):
     features = ds_tr.map(lambda x, y: x)
     
     plotImages(features)
-    
-    
-    #checkpoint_path = r"C:\Users\yblad\Documents\For Bsc\Year 3\AI\Assessed Work\Project\Code\Checkpoints\1.ckpt"
-    #checkpoint_path = normpath(checkpoint_path)
-    
-    #cp_callback = ModelCheckpoint(
-    #    filepath=checkpoint_path, 
-    #    verbose=1, 
-    #    save_weights_only=True,
-    #    save_freq= 5 * tr_length // batch_size)
-    
-    #history = History()
-    
-    #model.compile(optimizer=Adam(learning_rate=0.0001),
-    #              loss='categorical_crossentropy',
-    #              metrics=[F1Score(num_classes=4, average='macro'),
-    #                       AUC(curve='PR'),CategoricalAccuracy()]
-    #)
-    
-    #model.fit(x = ds_tr,
-    #          validation_data=ds_val,
-    #          epochs=50,
-    #          callbacks=[cp_callback, history],
-    #          verbose=2
-    #)
       
 def get_param_vars(params):
     '''Unbundles dictionary items into variables'''
@@ -191,20 +170,6 @@ def get_param_vars(params):
         epochs = 50   
         
     return batch_size, optimizer, epochs
-
-#def get_f1(preds, data):
-#        metric = F1Score(num_classes=4, average='macro')
-#
-#        _, tr_labels = tuple(zip(*data.unbatch()))
-#        tr_labels = np.array(tr_labels)
-#        print(tr_labels)
-#        metric.update_state(tr_labels,preds)
-#        
-#        result = metric.result().numpy()
-#        metric.reset_state()
-#        
-#        return result
-    
 
 def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     '''Cross validator. Designed to crossvalidate different paramaters on
@@ -346,7 +311,6 @@ model_vgg7 = Sequential([
         BatchNormalization(),
         Dense(units=12, activation='relu', kernel_initializer='he_normal'),
         BatchNormalization(),
-        #Dropout(drop_out),
         Dense(units=12, activation='relu', kernel_initializer='he_normal'),
         BatchNormalization(),
         Dropout(drop_out),
@@ -397,38 +361,36 @@ plt.show()
 
 plt.plot(history.history['f1_score'], label='train')
 plt.plot(history.history['val_f1_score'], label='validation')
-plt.title("Vgg7 F1 Score (no L2 regularization)")
+plt.title("Vgg7 F1 Score (drop out=0.35)")
 plt.legend()
 plt.show()
 
 model_vgg7.evaluate(ds_tr)
 model_vgg7.evaluate(ds_val)
 
-model_vgg7.save_weights('Models/vgg7/vgg7_model_weights.pb')
+model_vgg7.save_weights('Models/vgg7/vgg7_model_weights_dr35.pb')
 
-model_vgg7_l2 = Sequential([
+drop_out = 0.25
+
+model_vgg7_dr25 = Sequential([
         Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', input_shape=(194,224,3), kernel_regularizer='l2'),
+               kernel_initializer='he_normal', input_shape=(194,224,3)),
         Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', kernel_regularizer='l2'),
+               kernel_initializer='he_normal'),
         MaxPool2D(pool_size=(2, 2), strides=2),
         Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', kernel_regularizer='l2'),
+               kernel_initializer='he_normal'),
         Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', kernel_regularizer='l2'),
+               kernel_initializer='he_normal'),
         MaxPool2D(pool_size=(2, 2), strides=2),
         Flatten(),
         BatchNormalization(),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal',
-              kernel_regularizer='l2'),
+        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
         BatchNormalization(),
-        #Dropout(drop_out),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal',
-              kernel_regularizer='l2'),
+        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
         BatchNormalization(),
         Dropout(drop_out),
-        Dense(units=4, activation='softmax', kernel_initializer='he_normal',
-              kernel_regularizer='l2'),
+        Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
 ])
 
 params = {'optimizer':['Adam'],
@@ -437,7 +399,7 @@ params = {'optimizer':['Adam'],
           'learning_rate':[0.001]}
 params = ParameterGrid(params)
 
-scores = cv(5, ds_tr, tr_length, model_vgg7_l2, params)
+scores = cv(5, ds_tr, tr_length, model_vgg7, params)
 print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
 
 best_params = scores[2]
@@ -449,36 +411,38 @@ ds_tr = ds_tr.batch(batch_size)
 ds_val = ds_val.unbatch()
 ds_val = ds_val.batch(batch_size)
 
-model_vgg7_l2 = keras.models.clone_model(model_vgg7_l2)
-model_vgg7_l2.compile(optimizer=optimizer,
+model_vgg7_dr25 = keras.models.clone_model(model_vgg7_dr25)
+model_vgg7_dr25.compile(optimizer=optimizer,
               loss='categorical_crossentropy',
               metrics=[F1Score(num_classes=4, average='macro'),
                        CategoricalAccuracy()]
               )
 
-model_vgg7_l2.fit(x = ds_tr,
+model_vgg7_dr25.fit(x = ds_tr,
           epochs=epochs,
           validation_data=ds_val,
           verbose=2,
           callbacks=[history]
 )
 
-print(model_vgg7_l2.summary())
+print(model_vgg7_dr25.summary())
 
 plt.plot(history.history['loss'], label='train')
 plt.plot(history.history['val_loss'], label='validation')
-plt.title("Vgg7 Loss (L2 regularization)")
+plt.title("Vgg7 Loss (drop out=0.25)")
 plt.legend()
 plt.show()
 
 plt.plot(history.history['f1_score'], label='train')
 plt.plot(history.history['val_f1_score'], label='validation')
-plt.title("Vgg7 F1 Score (L2 regularization)")
+plt.title("Vgg7 F1 Score (drop out=0.25)")
 plt.legend()
 plt.show()
 
-model_vgg7_l2.evaluate(ds_tr)
-model_vgg7_l2.evaluate(ds_val)
+model_vgg7_dr25.evaluate(ds_tr)
+model_vgg7_dr25.evaluate(ds_val)
+
+model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25.pb')
 
 #For running against test set, with final models only
 #f1 = model_xxx.evaluate(ds_test)
