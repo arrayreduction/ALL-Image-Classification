@@ -293,156 +293,320 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     else:
         return cv_scores
 
-#VGG-like model.
-drop_out = 0.35
+def model_1(ds_tr, ds_val):
+    #VGG-like model.
+    drop_out = 0.35
+    
+    model_vgg7 = Sequential([
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal', input_shape=(194,224,3)),
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Flatten(),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dropout(drop_out),
+            Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
+    ])
+    
+    history = History()
+    
+    params = {'optimizer':['Adam'],
+              'epochs':[25],
+              'batch_size':[8, 16],
+              'learning_rate':[0.001,0.00001]}
+    params = ParameterGrid(params)
+                
+    scores = cv(5, ds_tr, tr_length, model_vgg7, params)
+    print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
+    
+    best_params = scores[2]
+    batch_size, optimizer, epochs = get_param_vars(best_params)
+    
+    ds_tr = ds_tr.unbatch()
+    ds_tr = ds_tr.batch(batch_size)
+    
+    ds_val = ds_val.unbatch()
+    ds_val = ds_val.batch(batch_size)
+    
+    model_vgg7 = keras.models.clone_model(model_vgg7)
+    model_vgg7.compile(optimizer=optimizer,
+                  loss='categorical_crossentropy',
+                  metrics=[F1Score(num_classes=4, average='macro'),
+                           CategoricalAccuracy()]
+                  )
+    
+    model_vgg7.fit(x = ds_tr,
+              epochs=epochs,
+              validation_data=ds_val,
+              verbose=2,
+              callbacks=[history]
+    )
+    
+    print(model_vgg7.summary())
+    
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='validation')
+    plt.title("Vgg7 Loss (drop out=0.35)")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(history.history['f1_score'], label='train')
+    plt.plot(history.history['val_f1_score'], label='validation')
+    plt.title("Vgg7 F1 Score (drop out=0.35)")
+    plt.legend()
+    plt.show()
+    
+    model_vgg7.evaluate(ds_tr)
+    model_vgg7.evaluate(ds_val)
+    
+    model_vgg7.save_weights('Models/vgg7_dr35/vgg7_model_weights_dr35.pb')
 
-model_vgg7 = Sequential([
-        Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', input_shape=(194,224,3)),
-        Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        MaxPool2D(pool_size=(2, 2), strides=2),
-        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        MaxPool2D(pool_size=(2, 2), strides=2),
-        Flatten(),
-        BatchNormalization(),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
-        BatchNormalization(),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
-        BatchNormalization(),
-        Dropout(drop_out),
-        Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
-])
+def model_2(ds_tr, ds_val):
+    drop_out = 0.25
+    
+    model_vgg7 = Sequential([
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal', input_shape=(194,224,3)),
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Flatten(),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dropout(drop_out),
+            Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
+    ])
+    
+    params = {'optimizer':['Adam'],
+              'epochs':[25],
+              'batch_size':[16],
+              'learning_rate':[0.001]}
+    params = ParameterGrid(params)
+    
+    history = History()
+    
+    scores = cv(5, ds_tr, tr_length, model_vgg7, params)
+    print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
+    
+    best_params = scores[2]
+    batch_size, optimizer, epochs = get_param_vars(best_params)
+    
+    ds_tr = ds_tr.unbatch()
+    ds_tr = ds_tr.batch(batch_size)
+    
+    ds_val = ds_val.unbatch()
+    ds_val = ds_val.batch(batch_size)
+    
+    model_vgg7 = keras.models.clone_model(model_vgg7)
+    model_vgg7.compile(optimizer=optimizer,
+                  loss='categorical_crossentropy',
+                  metrics=[F1Score(num_classes=4, average='macro'),
+                           CategoricalAccuracy()]
+                  )
+    
+    model_vgg7.fit(x = ds_tr,
+              epochs=epochs,
+              validation_data=ds_val,
+              verbose=2,
+              callbacks=[history]
+    )
+    
+    print(model_vgg7.summary())
+    
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='validation')
+    plt.title("Vgg7 Loss (drop out=0.25)")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(history.history['f1_score'], label='train')
+    plt.plot(history.history['val_f1_score'], label='validation')
+    plt.title("Vgg7 F1 Score (drop out=0.25)")
+    plt.legend()
+    plt.show()
+    
+    model_vgg7.evaluate(ds_tr)
+    model_vgg7.evaluate(ds_val)
+    
+    model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25.pb')
+    
+def model_3(ds_tr, ds_val):
+    drop_out = 0.35
+    
+    model_vgg7 = Sequential([
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal', input_shape=(194,224,3)),
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Flatten(),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dropout(drop_out),
+            Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
+    ])
+    
+    history = History()
+    
+    params = {'optimizer':['Adam'],
+              'epochs':[50],
+              'batch_size':[16],
+              'learning_rate':[0.001]}
+    params = ParameterGrid(params)
+                
+    scores = cv(5, ds_tr, tr_length, model_vgg7, params)
+    print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
+    
+    best_params = scores[2]
+    batch_size, optimizer, epochs = get_param_vars(best_params)
+    
+    ds_tr = ds_tr.unbatch()
+    ds_tr = ds_tr.batch(batch_size)
+    
+    ds_val = ds_val.unbatch()
+    ds_val = ds_val.batch(batch_size)
+    
+    model_vgg7 = keras.models.clone_model(model_vgg7)
+    model_vgg7.compile(optimizer=optimizer,
+                  loss='categorical_crossentropy',
+                  metrics=[F1Score(num_classes=4, average='macro'),
+                           CategoricalAccuracy()]
+                  )
+    
+    model_vgg7.fit(x = ds_tr,
+              epochs=epochs,
+              validation_data=ds_val,
+              verbose=2,
+              callbacks=[history]
+    )
+    
+    print(model_vgg7.summary())
+    
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='validation')
+    plt.title("Vgg7 Loss (drop out=0.35)")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(history.history['f1_score'], label='train')
+    plt.plot(history.history['val_f1_score'], label='validation')
+    plt.title("Vgg7 F1 Score (drop out=0.35)")
+    plt.legend()
+    plt.show()
+    
+    model_vgg7.evaluate(ds_tr)
+    model_vgg7.evaluate(ds_val)
+    
+    model_vgg7.save_weights('Models/vgg7_dr35/vgg7_model_weights_dr35_e50.pb')
+    
+def model_4(ds_tr, ds_val):
+    drop_out = 0.25
+    
+    model_vgg7 = Sequential([
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal', input_shape=(194,224,3)),
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Flatten(),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dropout(drop_out),
+            Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
+    ])
+    
+    params = {'optimizer':['Adam'],
+              'epochs':[50],
+              'batch_size':[16],
+              'learning_rate':[0.001]}
+    params = ParameterGrid(params)
+    
+    history = History()
+    
+    scores = cv(5, ds_tr, tr_length, model_vgg7, params)
+    print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
+    
+    best_params = scores[2]
+    batch_size, optimizer, epochs = get_param_vars(best_params)
+    
+    ds_tr = ds_tr.unbatch()
+    ds_tr = ds_tr.batch(batch_size)
+    
+    ds_val = ds_val.unbatch()
+    ds_val = ds_val.batch(batch_size)
+    
+    model_vgg7 = keras.models.clone_model(model_vgg7)
+    model_vgg7.compile(optimizer=optimizer,
+                  loss='categorical_crossentropy',
+                  metrics=[F1Score(num_classes=4, average='macro'),
+                           CategoricalAccuracy()]
+                  )
+    
+    model_vgg7.fit(x = ds_tr,
+              epochs=epochs,
+              validation_data=ds_val,
+              verbose=2,
+              callbacks=[history]
+    )
+    
+    print(model_vgg7.summary())
+    
+    plt.plot(history.history['loss'], label='train')
+    plt.plot(history.history['val_loss'], label='validation')
+    plt.title("Vgg7 Loss (drop out=0.25)")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(history.history['f1_score'], label='train')
+    plt.plot(history.history['val_f1_score'], label='validation')
+    plt.title("Vgg7 F1 Score (drop out=0.25)")
+    plt.legend()
+    plt.show()
+    
+    model_vgg7.evaluate(ds_tr)
+    model_vgg7.evaluate(ds_val)
+    
+    model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25_e50.pb')
 
-history = History()
+model_1()
+model_2()
+model_3()
+model_4()
 
-params = {'optimizer':['Adam'],
-          'epochs':[25],
-          'batch_size':[8, 16],
-          'learning_rate':[0.001,0.00001]}
-params = ParameterGrid(params)
-            
-scores = cv(5, ds_tr, tr_length, model_vgg7, params)
-print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
-
-best_params = scores[2]
-batch_size, optimizer, epochs = get_param_vars(best_params)
-
-ds_tr = ds_tr.unbatch()
-ds_tr = ds_tr.batch(batch_size)
-
-ds_val = ds_val.unbatch()
-ds_val = ds_val.batch(batch_size)
-
-model_vgg7 = keras.models.clone_model(model_vgg7)
-model_vgg7.compile(optimizer=optimizer,
-              loss='categorical_crossentropy',
-              metrics=[F1Score(num_classes=4, average='macro'),
-                       CategoricalAccuracy()]
-              )
-
-model_vgg7.fit(x = ds_tr,
-          epochs=epochs,
-          validation_data=ds_val,
-          verbose=2,
-          callbacks=[history]
-)
-
-print(model_vgg7.summary())
-
-plt.plot(history.history['loss'], label='train')
-plt.plot(history.history['val_loss'], label='validation')
-plt.title("Vgg7 Loss (no L2 regularization)")
-plt.legend()
-plt.show()
-
-plt.plot(history.history['f1_score'], label='train')
-plt.plot(history.history['val_f1_score'], label='validation')
-plt.title("Vgg7 F1 Score (drop out=0.35)")
-plt.legend()
-plt.show()
-
-model_vgg7.evaluate(ds_tr)
-model_vgg7.evaluate(ds_val)
-
-model_vgg7.save_weights('Models/vgg7/vgg7_model_weights_dr35.pb')
-
-drop_out = 0.25
-
-model_vgg7_dr25 = Sequential([
-        Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal', input_shape=(194,224,3)),
-        Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        MaxPool2D(pool_size=(2, 2), strides=2),
-        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
-               kernel_initializer='he_normal'),
-        MaxPool2D(pool_size=(2, 2), strides=2),
-        Flatten(),
-        BatchNormalization(),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
-        BatchNormalization(),
-        Dense(units=12, activation='relu', kernel_initializer='he_normal'),
-        BatchNormalization(),
-        Dropout(drop_out),
-        Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
-])
-
-params = {'optimizer':['Adam'],
-          'epochs':[25],
-          'batch_size':[16],
-          'learning_rate':[0.001]}
-params = ParameterGrid(params)
-
-scores = cv(5, ds_tr, tr_length, model_vgg7, params)
-print(f'\n Best score (val):\n (tr, val, params) \n {scores} \n')
-
-best_params = scores[2]
-batch_size, optimizer, epochs = get_param_vars(best_params)
-
-ds_tr = ds_tr.unbatch()
-ds_tr = ds_tr.batch(batch_size)
-
-ds_val = ds_val.unbatch()
-ds_val = ds_val.batch(batch_size)
-
-model_vgg7_dr25 = keras.models.clone_model(model_vgg7_dr25)
-model_vgg7_dr25.compile(optimizer=optimizer,
-              loss='categorical_crossentropy',
-              metrics=[F1Score(num_classes=4, average='macro'),
-                       CategoricalAccuracy()]
-              )
-
-model_vgg7_dr25.fit(x = ds_tr,
-          epochs=epochs,
-          validation_data=ds_val,
-          verbose=2,
-          callbacks=[history]
-)
-
-print(model_vgg7_dr25.summary())
-
-plt.plot(history.history['loss'], label='train')
-plt.plot(history.history['val_loss'], label='validation')
-plt.title("Vgg7 Loss (drop out=0.25)")
-plt.legend()
-plt.show()
-
-plt.plot(history.history['f1_score'], label='train')
-plt.plot(history.history['val_f1_score'], label='validation')
-plt.title("Vgg7 F1 Score (drop out=0.25)")
-plt.legend()
-plt.show()
-
-model_vgg7_dr25.evaluate(ds_tr)
-model_vgg7_dr25.evaluate(ds_val)
-
-model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25.pb')
 
 #For running against test set, with final models only
 #f1 = model_xxx.evaluate(ds_test)
