@@ -602,10 +602,10 @@ def model_4(ds_tr, ds_val):
     
     model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25_e50.pb')
 
-model_1()
-model_2()
-model_3()
-model_4()
+model_1(ds_tr, ds_val)
+model_2(ds_tr, ds_val)
+model_3(ds_tr, ds_val)
+model_4(ds_tr, ds_val)
 
 
 #For running against test set, with final models only

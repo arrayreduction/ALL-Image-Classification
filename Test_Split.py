@@ -6,14 +6,6 @@ def get_files(dir, src):
     '''Get list of files with path from given directory'''
 
     #Build file path according to dir passed
-
-    #Below code retained temporarily incase needed later, originates from
-    #first project idea which was abandoned.
-    #if "lung" in dir:
-    #    sub_src = os.path.join(src, 'lung_image_sets')
-    #else:
-    #    sub_src = os.path.join(src, 'colon_image_sets')
-
     sub_src = os.path.join(src, dir)
 
     #Get all filenames with filepath
