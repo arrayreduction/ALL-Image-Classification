@@ -13,10 +13,10 @@ from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization,
 from tensorflow.keras.optimizers import Adam, Adagrad
 from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccuracy, AUC
 from tensorflow_addons.metrics import F1Score
-from tensorflow.keras.callbacks import ModelCheckpoint, History
-from os.path import normpath
-from sklearn.model_selection import KFold, ParameterGrid
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import History
+from sklearn.model_selection import ParameterGrid
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.preprocessing import LabelBinarizer
 import matplotlib.pyplot as plt
 from math import ceil
 import gc
@@ -64,7 +64,7 @@ with tf.device("/cpu:0"):
             image_size=image_size,
             label_mode='categorical',
            batch_size=1,
-           shuffle=True
+           shuffle=False
         )
     
     class_names = ds_tr.class_names   
@@ -369,7 +369,8 @@ def model_1(ds_tr, ds_val):
     model_vgg7.evaluate(ds_tr)
     model_vgg7.evaluate(ds_val)
     
-    model_vgg7.save_weights('Models/vgg7_dr35/vgg7_model_weights_dr35.pb')
+    model_vgg7.save('Models/vgg7_dr35/e25/')
+    model_vgg7.save_weights('Models/vgg7_dr35/e25/vgg7_model_weights_dr35.pb')
 
 def model_2(ds_tr, ds_val):
     drop_out = 0.25
@@ -446,7 +447,8 @@ def model_2(ds_tr, ds_val):
     model_vgg7.evaluate(ds_tr)
     model_vgg7.evaluate(ds_val)
     
-    model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25.pb')
+    model_vgg7.save('Models/vgg7_dr25/e25')
+    model_vgg7.save_weights('Models/vgg7_dr25/e25/vgg7_model_weights_dr25.pb')
     
 def model_3(ds_tr, ds_val):
     drop_out = 0.35
@@ -523,7 +525,8 @@ def model_3(ds_tr, ds_val):
     model_vgg7.evaluate(ds_tr)
     model_vgg7.evaluate(ds_val)
     
-    model_vgg7.save_weights('Models/vgg7_dr35/vgg7_model_weights_dr35_e50.pb')
+    model_vgg7.save('Model/vgg7_dr35/e50')
+    model_vgg7.save_weights('Models/vgg7_dr35/e50/vgg7_model_weights_dr35_e50.pb')
     
 def model_4(ds_tr, ds_val):
     drop_out = 0.25
@@ -600,13 +603,67 @@ def model_4(ds_tr, ds_val):
     model_vgg7.evaluate(ds_tr)
     model_vgg7.evaluate(ds_val)
     
-    model_vgg7.save_weights('Models/vgg7_dr25/vgg7_model_weights_dr25_e50.pb')
+    model_vgg7.save('Models/vgg7_dr25/e50')
+    model_vgg7.save_weights('Models/vgg7_dr25/e50/vgg7_model_weights_dr25_e50.pb')
+    
+def end_eval_model_4(ds_test):
+    drop_out = 0.25
+    
+    model_vgg7 = Sequential([
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal', input_shape=(194,224,3)),
+            Conv2D(filters=64, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            Conv2D(filters=128, kernel_size=(3, 3), activation='relu', padding = 'same',
+                   kernel_initializer='he_normal'),
+            MaxPool2D(pool_size=(2, 2), strides=2),
+            Flatten(),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dense(units=12, activation='relu', kernel_initializer='he_normal'),
+            BatchNormalization(),
+            Dropout(drop_out),
+            Dense(units=4, activation='softmax', kernel_initializer='he_normal'),
+    ])
+    
+    batch_size = 16
+    optimizer = Adam(learning_rate=0.001)
+    
+    ds_test = ds_test.unbatch()
+    ds_test = ds_test.batch(batch_size)
+    
+    model_vgg7 = keras.models.clone_model(model_vgg7)
+    model_vgg7.compile(optimizer=optimizer,
+                  loss='categorical_crossentropy',
+                  metrics=[F1Score(num_classes=4, average='macro'),
+                           CategoricalAccuracy()]
+                  )
+    
+    path = 'Models/vgg7_dr25/e50/vgg7_model_weights_dr25_e50.pb'
+    model_vgg7.load_weights(path)
+
+    model_vgg7.evaluate(ds_test)
+    
+    preds = model_vgg7.predict(ds_test)
+    labels = tf.convert_to_tensor(list(ds_test.unbatch().map(lambda x, y: y)))
+    
+    #Convert to argmax predictions for confusion matrix
+    preds_argm = tf.math.argmax(preds, axis=1).numpy()
+    labels_argm = tf.math.argmax(labels, axis=1).numpy()
+    
+    cm = confusion_matrix(labels_argm, preds_argm, labels=[0,1,2,3])
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+                                  display_labels=['Benign','Early','Pre','Pro'])
+    disp.plot()
+    plt.show()
+    
 
 model_1(ds_tr, ds_val)
 model_2(ds_tr, ds_val)
 model_3(ds_tr, ds_val)
 model_4(ds_tr, ds_val)
-
-
-#For running against test set, with final models only
-#f1 = model_xxx.evaluate(ds_test)
+end_eval_model_4(ds_test)
