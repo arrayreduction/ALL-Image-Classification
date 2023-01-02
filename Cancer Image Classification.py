@@ -606,7 +606,12 @@ def model_4(ds_tr, ds_val):
     model_vgg7.save('Models/vgg7_dr25/e50')
     model_vgg7.save_weights('Models/vgg7_dr25/e50/vgg7_model_weights_dr25_e50.pb')
     
-def end_eval_model_4(ds_test):
+def end_eval_model_4(ds_test, shuffled=False):
+    '''As the model saves were added too late in development to be useful
+    we redefine the model and just load the weights onto it. Shuffled (True/False) is
+    whether the data is coming from a shuffle_on_iteration DataGen such as
+    preprocessing.image_dataset_from_directory with shuffle=True
+    '''
     drop_out = 0.25
     
     model_vgg7 = Sequential([
@@ -648,8 +653,31 @@ def end_eval_model_4(ds_test):
 
     model_vgg7.evaluate(ds_test)
     
-    preds = model_vgg7.predict(ds_test)
-    labels = tf.convert_to_tensor(list(ds_test.unbatch().map(lambda x, y: y)))
+    if shuffled:
+        #We have to treat this data differently as it is reshuffled every time
+        #we iterate the ds_test object. If we aren't careful the images/preds
+        #and labels become seperated as they are shuffled seperately.
+        images = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
+        labels = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
+        
+        for x, y in ds_test.unbatch():
+          images = images.write(images.size(), x)
+          labels = labels.write(labels.size(), y)
+        
+        images = tf.stack(images.stack(), axis=0)
+        labels = tf.stack(labels.stack(), axis=0)
+        
+        
+        with tf.device("/cpu:0"):
+            #Cannot fit full tensor into gpu memory, which is why we normally
+            #use a generator, so we run this pred on cpu.
+            #Could have made custom generator function but as we only run this
+            #once to get CM on validation data there's no point
+            preds = model_vgg7.predict(images)
+            
+    else:
+        labels = tf.convert_to_tensor(list(ds_test.unbatch().map(lambda x, y: y)))
+        preds = model_vgg7.predict(ds_test)
     
     #Convert to argmax predictions for confusion matrix
     preds_argm = tf.math.argmax(preds, axis=1).numpy()
@@ -666,4 +694,5 @@ model_1(ds_tr, ds_val)
 model_2(ds_tr, ds_val)
 model_3(ds_tr, ds_val)
 model_4(ds_tr, ds_val)
+end_eval_model_4(ds_val, shuffled=True)
 end_eval_model_4(ds_test)
