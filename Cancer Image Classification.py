@@ -70,7 +70,7 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     train_size = train_fraction * tr_length
     train_fold_size = fold_fraction * tr_length
     
-    #Round the fold size and train size up. As we are using tf.window()
+    #Round the fold size and train size up. As we are using take/skip
     #this will ensure all data are placed in a fold.
     
     train_size = ceil(train_size)
