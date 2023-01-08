@@ -11,131 +11,15 @@ from tensorflow import keras
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten, BatchNormalization, Conv2D, MaxPool2D
 from tensorflow.keras.optimizers import Adam, Adagrad
-from tensorflow.keras.metrics import CategoricalCrossentropy, CategoricalAccuracy, AUC
+from tensorflow.keras.metrics import CategoricalAccuracy
 from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.callbacks import History
 from sklearn.model_selection import ParameterGrid
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from sklearn.preprocessing import LabelBinarizer
 import matplotlib.pyplot as plt
 from math import ceil
 import gc
 
-physical_devices = tf.config.list_physical_devices('GPU')
-try:
-  tf.config.experimental.set_memory_growth(physical_devices[0], True)
-except:
-  # Invalid device or cannot modify virtual devices once initialized.
-  pass
-
-with tf.device("/cpu:0"):
-
-    image_size = (224,224)
-    train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_train'
-    test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_test'
-    
-    print("Loading training data:")    
-    ds_tr = keras.preprocessing.image_dataset_from_directory(
-        train_path,
-        validation_split=0.2,
-        subset='training',
-        seed=208,
-        image_size=image_size,
-        batch_size=1,
-        label_mode='categorical',
-        shuffle=True
-    )
-    
-    print("Loading validation data:")    
-    ds_val = keras.preprocessing.image_dataset_from_directory(
-        train_path,
-        validation_split=0.2,
-        subset='validation',
-        seed=208,
-        image_size=image_size,
-        batch_size=1,
-        label_mode='categorical',
-        shuffle=True
-    )
-    
-    print("Loading test data:") 
-    ds_test = keras.preprocessing.image_dataset_from_directory(
-            test_path,
-            image_size=image_size,
-            label_mode='categorical',
-           batch_size=1,
-           shuffle=False
-        )
-    
-    class_names = ds_tr.class_names   
-    print(f"\n Class names are {class_names}")
-    
-    tr_length = len(ds_tr)
-    val_length = len(ds_val)
-    
-    #Augmentation
-    Flip = keras.layers.RandomFlip()
-    Rotate = keras.layers.RandomRotation(0.25)
-    Cont = keras.layers.RandomContrast(factor=0.1)
-
-    
-    def augment(image, label):
-        image = Flip(image)
-        image = Rotate(image)
-        image = Cont(image)
-        
-        return image, label
-        
-      
-    AUTOTUNE = tf.data.AUTOTUNE
-    
-    #Preprocessing. We pass just the image tensor portion
-    #of the training data to the adapt method of a normalise layer.
-    #This gives us a normaliser which does (input - mean) / sqrt(var)
-    #based on the mean and var from the training data channels only
-    
-    crop_layer = tf.keras.layers.Cropping2D(cropping=((0, 30), (0, 0)))
-    
-    def preprocessing_1(image, label):
-        image = crop_layer(image)
-        
-        return image, label
-    
-    def preprocessing_2(image, label):
-        image = norm_layer(image)
-        
-        return image, label
-
-    #Crop, then augment, then normalize    
-
-    ds_tr = ds_tr.map(preprocessing_1, num_parallel_calls=4)
-    ds_val = ds_val.map(preprocessing_1, num_parallel_calls=4)
-    ds_test = ds_test.map(preprocessing_1, num_parallel_calls=4)
-    
-    ds_tr = ds_tr.map(augment, num_parallel_calls=4)
-    
-    features = ds_tr.map(lambda x, y: x)
-    norm_layer = tf.keras.layers.Normalization(axis=None)
-    norm_layer.adapt(features)
-    
-    ds_tr = ds_tr.map(preprocessing_2, num_parallel_calls=4)
-    ds_val = ds_val.map(preprocessing_2, num_parallel_calls=4)
-    ds_test = ds_test.map(preprocessing_2, num_parallel_calls=4)
-    
-    #Show images, adapted from code by Uche Onyekpe
-    def plotImages(images):
-        fig, axes = plt.subplots(1, 10, figsize=(20,20))
-        axes = axes.flatten()
-        for img, ax in zip(images, axes):
-            ax.imshow(img[0,:,:,:])
-            ax.axis('off')
-        plt.tight_layout()
-        plt.show()
-    
-    features = ds_tr.map(lambda x, y: x)
-    
-    plotImages(features)
-      
 def get_param_vars(params):
     '''Unbundles dictionary items into variables'''
     #get batch_size from params
@@ -262,7 +146,7 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
                                        CategoricalAccuracy()]
                 )
                 
-            
+            AUTOTUNE = tf.data.AUTOTUNE
             train_folds = train_folds.cache().prefetch(buffer_size=AUTOTUNE)
             #val_fold = val_fold.cache().prefetch(buffer_size=AUTOTUNE)
             
@@ -293,7 +177,7 @@ def cv(cv_split, train_data, tr_length, model, param_grid, return_best=True):
     else:
         return cv_scores
 
-def model_1(ds_tr, ds_val):
+def model_1(ds_tr, ds_val, tr_length):
     #VGG-like model.
     drop_out = 0.35
     
@@ -372,7 +256,7 @@ def model_1(ds_tr, ds_val):
     model_vgg7.save('Models/vgg7_dr35/e25/')
     model_vgg7.save_weights('Models/vgg7_dr35/e25/vgg7_model_weights_dr35.pb')
 
-def model_2(ds_tr, ds_val):
+def model_2(ds_tr, ds_val, tr_length):
     drop_out = 0.25
     
     model_vgg7 = Sequential([
@@ -450,7 +334,7 @@ def model_2(ds_tr, ds_val):
     model_vgg7.save('Models/vgg7_dr25/e25')
     model_vgg7.save_weights('Models/vgg7_dr25/e25/vgg7_model_weights_dr25.pb')
     
-def model_3(ds_tr, ds_val):
+def model_3(ds_tr, ds_val, tr_length):
     drop_out = 0.35
     
     model_vgg7 = Sequential([
@@ -528,7 +412,7 @@ def model_3(ds_tr, ds_val):
     model_vgg7.save('Model/vgg7_dr35/e50')
     model_vgg7.save_weights('Models/vgg7_dr35/e50/vgg7_model_weights_dr35_e50.pb')
     
-def model_4(ds_tr, ds_val):
+def model_4(ds_tr, ds_val, tr_length):
     drop_out = 0.25
     
     model_vgg7 = Sequential([
@@ -688,11 +572,124 @@ def end_eval_model_4(ds_test, shuffled=False):
                                   display_labels=['Benign','Early','Pre','Pro'])
     disp.plot()
     plt.show()
-    
 
-model_1(ds_tr, ds_val)
-model_2(ds_tr, ds_val)
-model_3(ds_tr, ds_val)
-model_4(ds_tr, ds_val)
+def load_and_preprocess():
+    physical_devices = tf.config.list_physical_devices('GPU')
+    try:
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    except Exception:
+        # Invalid device or cannot modify virtual devices once initialized.
+        pass
+
+    with tf.device("/cpu:0"):
+        image_size = (224,224)
+        train_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_train'
+        test_path = r'C:/Users/yblad/Documents/For Bsc/Year 3/AI/Assessed Work/Project/Code/Original_test'
+        
+        print("Loading training data:")    
+        ds_tr = keras.preprocessing.image_dataset_from_directory(
+            train_path,
+            validation_split=0.2,
+            subset='training',
+            seed=208,
+            image_size=image_size,
+            batch_size=1,
+            label_mode='categorical',
+            shuffle=True
+        )
+        
+        print("Loading validation data:")    
+        ds_val = keras.preprocessing.image_dataset_from_directory(
+            train_path,
+            validation_split=0.2,
+            subset='validation',
+            seed=208,
+            image_size=image_size,
+            batch_size=1,
+            label_mode='categorical',
+            shuffle=True
+        )
+        
+        print("Loading test data:") 
+        ds_test = keras.preprocessing.image_dataset_from_directory(
+                test_path,
+                image_size=image_size,
+                label_mode='categorical',
+            batch_size=1,
+            shuffle=False
+            )
+        
+        class_names = ds_tr.class_names   
+        print(f"\n Class names are {class_names}")
+        
+        tr_length = len(ds_tr)
+        
+        #Augmentation
+        Flip = keras.layers.RandomFlip()
+        Rotate = keras.layers.RandomRotation(0.25)
+        Cont = keras.layers.RandomContrast(factor=0.1)
+
+        
+        def augment(image, label):
+            image = Flip(image)
+            image = Rotate(image)
+            image = Cont(image)
+            
+            return image, label
+        
+        #Preprocessing. We pass just the image tensor portion
+        #of the training data to the adapt method of a normalise layer.
+        #This gives us a normaliser which does (input - mean) / sqrt(var)
+        #based on the mean and var from the training data channels only
+        
+        crop_layer = tf.keras.layers.Cropping2D(cropping=((0, 30), (0, 0)))
+        
+        def preprocessing_1(image, label):
+            image = crop_layer(image)
+            
+            return image, label
+        
+        def preprocessing_2(image, label):
+            image = norm_layer(image)
+            
+            return image, label
+
+        #Crop, then augment, then normalize    
+
+        ds_tr = ds_tr.map(preprocessing_1, num_parallel_calls=4)
+        ds_val = ds_val.map(preprocessing_1, num_parallel_calls=4)
+        ds_test = ds_test.map(preprocessing_1, num_parallel_calls=4)
+        
+        ds_tr = ds_tr.map(augment, num_parallel_calls=4)
+        
+        features = ds_tr.map(lambda x, y: x)
+        norm_layer = tf.keras.layers.Normalization(axis=None)
+        norm_layer.adapt(features)
+        
+        ds_tr = ds_tr.map(preprocessing_2, num_parallel_calls=4)
+        ds_val = ds_val.map(preprocessing_2, num_parallel_calls=4)
+        ds_test = ds_test.map(preprocessing_2, num_parallel_calls=4)
+        
+        #Show images, adapted from code by Uche Onyekpe
+        def plotImages(images):
+            fig, axes = plt.subplots(1, 10, figsize=(20,20))
+            axes = axes.flatten()
+            for img, ax in zip(images, axes):
+                ax.imshow(img[0,:,:,:])
+                ax.axis('off')
+            plt.tight_layout()
+            plt.show()
+        
+        features = ds_tr.map(lambda x, y: x)
+        
+        plotImages(features)
+        
+        return ds_tr, ds_val, ds_test, tr_length
+
+ds_tr, ds_val, ds_test, tr_length = load_and_preprocess()
+model_1(ds_tr, ds_val, tr_length)
+model_2(ds_tr, ds_val, tr_length)
+model_3(ds_tr, ds_val, tr_length)
+model_4(ds_tr, ds_val, tr_length)
 end_eval_model_4(ds_val, shuffled=True)
 end_eval_model_4(ds_test)
